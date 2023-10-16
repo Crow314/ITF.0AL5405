@@ -2,6 +2,7 @@
 #include <stdio.h>
 #include <unistd.h>
 #include <signal.h>
+#include <sys/wait.h>
 
 void child(int r) {
   printf("I'm child %d, sleeping %d seconds.\n", getpid(), r);
@@ -46,6 +47,18 @@ int main(int argc, char *argv[]) {
 
 
 int parent(int n) {
-    // ... （ここを埋める） ...
+  for (int i = 0; i < n; i++) {
+    int status;
+    pid_t p = wait(&status);
+
+    printf("child %d ", p);
+
+    if (WIFEXITED(status)) {
+      printf("exited with status: %d\n", WEXITSTATUS(status));
+    } else if (WIFSIGNALED(status)) {
+      printf("terminated by signal: %d\n", WTERMSIG(status));
+    } 
+  }
+
   return 0;
 }
