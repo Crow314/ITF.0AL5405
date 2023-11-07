@@ -22,14 +22,15 @@ static HEADER *allocp = &allocbuf;	/* Last block allocated */
 
 void *alloc3(int nbytes)		/* Return pointer to nbytes block */
 {
-  HEADER *p, *q;
+  HEADER *p, *q, *cp;
   int nunits = 1 + (nbytes + sizeof(HEADER) - 1) / sizeof(HEADER);
+  int corebytes;
 
   for (q = allocp, p = q->s.ptr; ; q = p, p = p->s.ptr) {
     if (p->s.size >= nunits) {
       if (p->s.size == nunits) { /* Just */
         if (p == q) { /* We have only one element */
-          return 0;
+          return 0; // It has dummy header
         }
         q->s.ptr = p->s.ptr;
       } else { /* Allocate tail */
@@ -41,7 +42,15 @@ void *alloc3(int nbytes)		/* Return pointer to nbytes block */
       return (void *)(p + 1);
     }
     if (p == allocp) {
-      return 0;
+      cp = (HEADER *)morecore(sizeof(HEADER) + nbytes, &corebytes);
+
+      if (cp == NULL) {
+        return NULL;
+      }
+
+      cp->s.size = corebytes / sizeof(HEADER);
+      afree3(cp+1);
+      // next: q = allocp
     }
   }
 }
