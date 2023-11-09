@@ -69,12 +69,30 @@ static int do_redirect(int in1, int out1, int in2, int out2)
   ev.data.fd = in1;
   check(epoll_ctl(epfd, EPOLL_CTL_ADD, in1, &ev), "epoll_ctl", 1);
 
+  struct epoll_event ev2;
+  ev2.events = EPOLLIN;
+  ev2.data.fd = in2;
+  check(epoll_ctl(epfd, EPOLL_CTL_ADD, in2, &ev2), "epoll_ctl-in2", 1);
+
   while (1) {
     int nevents, i;
     struct epoll_event events[MAX_EVENTS];
 
     check(nevents = epoll_wait(epfd, events, MAX_EVENTS, 0), "epoll_wait", 1);
 
+    for (i = 0; i < nevents; i++) {
+      if (events[i].data.fd == in1) {
+        if ((bytes = copy(in1, out1)) <= 0) {
+          break;
+        }
+      }
+
+      if (events[i].data.fd == in2) {
+        if ((bytes = copy(in2, out2)) <= 0) {
+          break;
+        }
+      }
+    }
   }
 }
 
