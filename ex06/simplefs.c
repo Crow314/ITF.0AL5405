@@ -238,6 +238,31 @@ static int simple_rename(const char *oldpath, const char *newpath)
   return 0;
 }
 
+static int simple_truncate(const char *path, off_t size)
+{
+  struct directory_entry *p;
+
+  if ((p = *(search_file(path))) == 0) {
+    return -ENOENT;
+  }
+
+  if (size < 0) {
+    return -EINVAL;
+  }
+
+  if (assure_size(p->file, size) < 0) {
+    return -ENOSPC;
+  }
+
+  for (int i=p->file->length; i<size; i++) {
+    *(p->file->data + i) = 0;
+  }
+
+  p->file->length = size;
+
+  return 0;
+}
+
 static struct fuse_operations simple_oper = {
   .getattr	= simple_getattr,
   .readdir	= simple_readdir,
@@ -247,6 +272,7 @@ static struct fuse_operations simple_oper = {
   .mknod	= simple_mknod,
   .unlink = simple_unlink,
   .rename = simple_rename,
+  .truncate = simple_truncate,
 };
 
 int main(int argc, char *argv[])
