@@ -210,6 +210,34 @@ static int simple_unlink(const char *path)
   return 0;
 }
 
+static int simple_rename(const char *oldpath, const char *newpath)
+{
+  struct directory_entry *p;
+  char *name;
+
+  if ((p = *(search_file(oldpath))) == 0) {
+    return -ENOENT;
+  }
+
+  if (strcmp(oldpath, newpath) == 0) {
+    return 0;
+  }
+
+  name = strdup(newpath + 1);
+  if (name == NULL) {
+    return -ENOSPC;
+  }
+
+  if ((search_file(newpath)) == 0) {
+    simple_unlink(newpath);
+  }
+
+  free(p->name);
+  p->name = name;
+
+  return 0;
+}
+
 static struct fuse_operations simple_oper = {
   .getattr	= simple_getattr,
   .readdir	= simple_readdir,
@@ -218,6 +246,7 @@ static struct fuse_operations simple_oper = {
   .write	= simple_write,
   .mknod	= simple_mknod,
   .unlink = simple_unlink,
+  .rename = simple_rename,
 };
 
 int main(int argc, char *argv[])
