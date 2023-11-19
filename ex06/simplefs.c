@@ -190,6 +190,26 @@ static int simple_mknod(const char *path, mode_t mode, dev_t device)
   return 0;
 }
 
+static int simple_unlink(const char *path)
+{
+  struct directory_entry **p;
+  struct directory_entry *entry;
+
+  if ((p = search_file(path)) == 0) {
+    return -ENOENT;
+  }
+
+  entry = *p;
+  *p = entry->next;
+
+  free(entry->file->data);
+  free(entry->file);
+  free(entry->name);
+  free(entry);
+
+  return 0;
+}
+
 static struct fuse_operations simple_oper = {
   .getattr	= simple_getattr,
   .readdir	= simple_readdir,
@@ -197,6 +217,7 @@ static struct fuse_operations simple_oper = {
   .read		= simple_read,
   .write	= simple_write,
   .mknod	= simple_mknod,
+  .unlink = simple_unlink,
 };
 
 int main(int argc, char *argv[])
