@@ -9,6 +9,7 @@
 #include <sys/socket.h> 
 #include <netinet/in.h> 
 #include <pthread.h>
+#include <signal.h>
 
 #include "log.h" 
 
@@ -19,6 +20,7 @@
 #define LISTEN_BACKLOG 5 
 #endif 
 
+sigset_t sigset;
 char *program_name = "server"; 
 
 int 
@@ -47,6 +49,19 @@ open_accepting_socket(int port)
         return (sock); 
 } 
 
+
+void
+*sig_handler(void *arg)
+{
+    int sig, err;
+
+    err = sigwait(&sigset, &sig);
+    if (err || (sig != SIGINT && sig != SIGTERM))
+        abort();
+
+    log_info("bye");
+    exit(0);
+}
 
 void
 *protocol_main(void *arg)
@@ -138,6 +153,14 @@ main(int argc, char **argv)
                 daemon(0, 0);
         }
 
+        pthread_t t;
+
+        sigemptyset(&sigset);
+        sigaddset(&sigset, SIGINT);
+        sigaddset(&sigset, SIGTERM);
+
+        pthread_sigmask(SIG_BLOCK, &sigset, NULL);
+        pthread_create(&t, NULL, sig_handler, NULL);
 
         main_loop(sock); 
 
