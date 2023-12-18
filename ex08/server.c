@@ -8,6 +8,7 @@
 #include <sys/types.h> 
 #include <sys/socket.h> 
 #include <netinet/in.h> 
+#include <pthread.h>
 
 #include "log.h" 
 
@@ -48,9 +49,11 @@ open_accepting_socket(int port)
 
 
 void
-protocol_main(int sock)
+*protocol_main(void *arg)
 {
     char c[1];
+    int sock = *(int *)arg;
+    free(arg);
 
     while (read(sock, c, sizeof c) > 0)
         /* ignore protocol process */;
@@ -70,8 +73,20 @@ main_loop(int accepting_socket)
         sock = accept(accepting_socket, (struct sockaddr *)&client_addr, &client_addr_size);
         if (sock < 0)
             log_error("accept error: %d", errno);
-        else
-            protocol_main(sock);
+        else {
+            pthread_t tid;
+
+            int *arg = malloc(sizeof(int));
+            if (arg == NULL) { // Handle malloc error
+                log_error("malloc error: %d", errno);
+                close(sock);
+                continue;
+            }
+
+            *arg = sock;
+            pthread_create(&tid, NULL, protocol_main, arg);
+            pthread_detach(tid);
+        }
     }
 }
 
