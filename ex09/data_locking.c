@@ -3,8 +3,6 @@
 #include <stdio.h>
 #include <pthread.h>
 
-pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
-
 struct entry {
     struct entry *next;
     void *data;
@@ -14,6 +12,7 @@ struct list {
     struct entry *head;
     struct entry **tail;
     pthread_cond_t notempty;
+    pthread_mutex_t m_lock;
 };
 
 struct list *list_init(void) {
@@ -36,29 +35,29 @@ int list_enqueue(struct list *list, void *data) {
     e->next = NULL;
     e->data = data;
 
-    pthread_mutex_lock(&m_lock);
+    pthread_mutex_lock(&list->m_lock);
 
     *list->tail = e;
     list->tail = &e->next;
 
     pthread_cond_signal(&list->notempty);
-    pthread_mutex_unlock(&m_lock);
+    pthread_mutex_unlock(&list->m_lock);
     return (0);
 }
 
 struct entry *list_dequeue(struct list *list) {
     struct entry *e;
 
-    pthread_mutex_lock(&m_lock);
+    pthread_mutex_lock(&list->m_lock);
 
     while (list->head == NULL)
-        pthread_cond_wait(&list->notempty, &m_lock);
+        pthread_cond_wait(&list->notempty, &list->m_lock);
     e = list->head;
     list->head = e->next;
     if (list->head == NULL)
         list->tail = &list->head;
 
-    pthread_mutex_unlock(&m_lock);
+    pthread_mutex_unlock(&list->m_lock);
 
     return (e);
 }
@@ -132,6 +131,7 @@ int main() {
     pthread_t t_e1, t_e2, t_d1, t_d2, t_d3, t_d4, t_d5, t_d6;
 
     list = list_init();
+    pthread_mutex_init(&list->m_lock, NULL);
 
     pthread_create(&t_e1, NULL, enqueue30, list);
     pthread_create(&t_e2, NULL, enqueue30, list);
