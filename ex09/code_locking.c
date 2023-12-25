@@ -1,6 +1,9 @@
 #include <stdlib.h>
 #include <string.h>
 #include <stdio.h>
+#include <pthread.h>
+
+pthread_mutex_t m_lock = PTHREAD_MUTEX_INITIALIZER;
 
 struct entry {
     struct entry *next;
@@ -10,6 +13,7 @@ struct entry {
 struct list {
     struct entry *head;
     struct entry **tail;
+    pthread_cond_t notempty;
 };
 
 struct list *list_init(void) {
@@ -31,20 +35,31 @@ int list_enqueue(struct list *list, void *data) {
         return (1);
     e->next = NULL;
     e->data = data;
+
+    pthread_mutex_lock(&m_lock);
+
     *list->tail = e;
     list->tail = &e->next;
+
+    pthread_cond_signal(&list->notempty);
+    pthread_mutex_unlock(&m_lock);
     return (0);
 }
 
 struct entry *list_dequeue(struct list *list) {
     struct entry *e;
 
-    if (list->head == NULL)
-        return(NULL);
+    pthread_mutex_lock(&m_lock);
+
+    while (list->head == NULL)
+        pthread_cond_wait(&list->notempty, &m_lock);
     e = list->head;
     list->head = e->next;
     if (list->head == NULL)
         list->tail = &list->head;
+
+    pthread_mutex_unlock(&m_lock);
+
     return (e);
 }
 
@@ -88,33 +103,54 @@ int delete_entry(void *e, void *u) {
     return (!strcmp(c1, c2));
 }
 
+// Threads
+
+void *enqueue30(void *arg) {
+    struct list *list = (struct list*) arg;
+    char buf[10];
+
+    for (int i=1; i<=30; i++) {
+        sprintf(buf, "%d", i);
+        list_enqueue(list, strdup(buf));
+        printf("%ld: enqueue %d\n", pthread_self(), i);
+    }
+}
+
+void *dequeue10(void *arg) {
+    struct list *list = (struct list*) arg;
+    struct entry *entry;
+
+    for (int i=0; i<10; i++) {
+        entry = list_dequeue(list);
+        printf("%ld: dequeue %s\n", pthread_self(), (char *)entry->data);
+    }
+}
+
 int main() {
     struct list *list;
     struct entry *entry;
+    pthread_t t_e1, t_e2, t_d1, t_d2, t_d3, t_d4, t_d5, t_d6;
 
     list = list_init();
 
-    /* enqueue data */
-    list_enqueue(list, strdup("first"));
-    list_enqueue(list, strdup("second"));
-    list_enqueue(list, strdup("third"));
+    pthread_create(&t_e1, NULL, enqueue30, list);
+    pthread_create(&t_e2, NULL, enqueue30, list);
+    pthread_create(&t_d1, NULL, dequeue10, list);
+    pthread_create(&t_d2, NULL, dequeue10, list);
+    pthread_create(&t_d3, NULL, dequeue10, list);
+    pthread_create(&t_d4, NULL, dequeue10, list);
+    pthread_create(&t_d5, NULL, dequeue10, list);
+    pthread_create(&t_d6, NULL, dequeue10, list);
 
-    /* entry list */
-    list_traverse(list, print_entry, NULL);
+    pthread_join(t_e1, NULL);
+    pthread_join(t_e2, NULL);
+    pthread_join(t_d1, NULL);
+    pthread_join(t_d2, NULL);
+    pthread_join(t_d3, NULL);
+    pthread_join(t_d4, NULL);
+    pthread_join(t_d5, NULL);
+    pthread_join(t_d6, NULL);
 
-    /* delete "second" entry */
-    entry = list_traverse(list, delete_entry, "second");
-    if (entry != NULL) {
-        free(entry->data);
-        free(entry);
-}
-
-    /* dequeue data */
-    while ((entry = list_dequeue(list)) != NULL) {
-        printf("%s\n", (char *)entry->data);
-        free(entry->data);
-        free(entry);
-    }
     free(list);
     return (0);
 }
