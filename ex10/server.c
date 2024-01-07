@@ -19,6 +19,75 @@
 #define LISTEN_BACKLOG 5
 #endif
 
+// ####
+// Beggining of Job queue
+// ####
+
+struct entry {
+    struct entry *next;
+    void *(*function)(void *);
+    void *arg;
+};
+
+struct list {
+    struct entry *head;
+    struct entry **tail;
+    pthread_cond_t notempty;
+    pthread_mutex_t m_lock;
+};
+
+struct list *list_init(void) {
+    struct list *list;
+
+    list = malloc(sizeof *list);
+    if (list == NULL)
+        return (NULL);
+    list->head = NULL;
+    list->tail = &list->head;
+    return (list);
+}
+
+int list_enqueue(struct list *list, void *(*function)(void *), void *arg) {
+    struct entry *e;
+
+    e = malloc(sizeof *e);
+    if (e == NULL)
+        return (1);
+    e->next = NULL;
+    e->function = function;
+    e->arg = arg;
+
+    pthread_mutex_lock(&list->m_lock);
+
+    *list->tail = e;
+    list->tail = &e->next;
+
+    pthread_cond_signal(&list->notempty);
+    pthread_mutex_unlock(&list->m_lock);
+    return (0);
+}
+
+struct entry *list_dequeue(struct list *list) {
+    struct entry *e;
+
+    pthread_mutex_lock(&list->m_lock);
+
+    while (list->head == NULL)
+        pthread_cond_wait(&list->notempty, &list->m_lock);
+    e = list->head;
+    list->head = e->next;
+    if (list->head == NULL)
+        list->tail = &list->head;
+
+    pthread_mutex_unlock(&list->m_lock);
+
+    return (e);
+}
+
+// ####
+// End of Job queue
+// ####
+
 sigset_t sigset;
 char *program_name = "server";
 
