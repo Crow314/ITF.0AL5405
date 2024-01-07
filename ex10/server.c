@@ -88,6 +88,24 @@ struct entry *list_dequeue(struct list *list) {
 // End of Job queue
 // ####
 
+// ####
+// Beggining of Worker
+// ####
+
+void *worker(void *arg) {
+    struct entry *job;
+    struct list *queue = (struct list*)arg;
+
+    while (1) {
+        job = list_dequeue(queue);
+        job->function(job->arg);
+    }
+}
+
+// ####
+// End of Worker
+// ####
+
 sigset_t sigset;
 char *program_name = "server";
 
