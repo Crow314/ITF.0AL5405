@@ -156,7 +156,7 @@ void *protocol_main(void *arg) {
     log_info("disconnected");
 }
 
-void main_loop(int accepting_socket) {
+void main_loop(int accepting_socket, struct list *list) {
     int sock;
     struct sockaddr_in client_addr;
     socklen_t client_addr_size;
@@ -167,8 +167,6 @@ void main_loop(int accepting_socket) {
         if (sock < 0)
             log_error("accept error: %d", errno);
         else {
-            pthread_t tid;
-
             int *arg = malloc(sizeof(int));
             if (arg == NULL) { // Handle malloc error
                 log_error("malloc error: %d", errno);
@@ -177,8 +175,7 @@ void main_loop(int accepting_socket) {
             }
 
             *arg = sock;
-            pthread_create(&tid, NULL, protocol_main, arg);
-            pthread_detach(tid);
+            list_enqueue(list, protocol_main, arg);
         }
     }
 }
@@ -226,7 +223,8 @@ int main(int argc, char **argv) {
         daemon(0, 0);
     }
 
-    pthread_t t;
+    pthread_t t, t_w1, t_w2, t_w3;
+    struct list *list;
 
     sigemptyset(&sigset);
     sigaddset(&sigset, SIGINT);
@@ -235,7 +233,12 @@ int main(int argc, char **argv) {
     pthread_sigmask(SIG_BLOCK, &sigset, NULL);
     pthread_create(&t, NULL, sig_handler, NULL);
 
-    main_loop(sock);
+    list = list_init();
+    pthread_create(&t_w1, NULL, worker, list);
+    pthread_create(&t_w2, NULL, worker, list);
+    pthread_create(&t_w3, NULL, worker, list);
+
+    main_loop(sock, list);
 
     /*NOTREACHED*/
     return (0);
