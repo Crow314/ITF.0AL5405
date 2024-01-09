@@ -92,13 +92,21 @@ struct entry *list_dequeue(struct list *list) {
 // Beggining of Worker
 // ####
 
+void cleanup(void *arg) {
+    int sock = *(int *)arg;
+    close(sock);
+    free(arg);
+}
+
 void *worker(void *arg) {
     struct entry *job;
     struct list *queue = (struct list*)arg;
 
     while (1) {
         job = list_dequeue(queue);
+        pthread_cleanup_push(cleanup, job->arg);
         job->function(job->arg);
+        pthread_cleanup_pop(1);
     }
 }
 
@@ -133,6 +141,12 @@ int open_accepting_socket(int port) {
     return (sock);
 }
 
+void *thread_canceler(void *arg) {
+    pthread_t t = *(pthread_t *)arg;
+
+    sleep(30);
+    pthread_cancel(t);
+}
 
 void *sig_handler(void *arg) {
     int sig, err;
@@ -148,11 +162,9 @@ void *sig_handler(void *arg) {
 void *protocol_main(void *arg) {
     char c[1];
     int sock = *(int *)arg;
-    free(arg);
 
     while (read(sock, c, sizeof c) > 0)
         /* ignore protocol process */;
-    close(sock);
     log_info("disconnected");
 }
 
@@ -223,7 +235,7 @@ int main(int argc, char **argv) {
         daemon(0, 0);
     }
 
-    pthread_t t, t_w1, t_w2, t_w3;
+    pthread_t t, t_w1, t_w2, t_w3, t_c1;
     struct list *list;
 
     sigemptyset(&sigset);
@@ -237,6 +249,7 @@ int main(int argc, char **argv) {
     pthread_create(&t_w1, NULL, worker, list);
     pthread_create(&t_w2, NULL, worker, list);
     pthread_create(&t_w3, NULL, worker, list);
+    pthread_create(&t_c1, NULL, thread_canceler, &t_w1);
 
     main_loop(sock, list);
 
