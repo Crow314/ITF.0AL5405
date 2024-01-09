@@ -141,6 +141,12 @@ int open_accepting_socket(int port) {
     return (sock);
 }
 
+void *thread_canceler(void *arg) {
+    pthread_t t = *(pthread_t *)arg;
+
+    sleep(30);
+    pthread_cancel(t);
+}
 
 void *sig_handler(void *arg) {
     int sig, err;
@@ -229,7 +235,7 @@ int main(int argc, char **argv) {
         daemon(0, 0);
     }
 
-    pthread_t t, t_w1, t_w2, t_w3;
+    pthread_t t, t_w1, t_w2, t_w3, t_c1;
     struct list *list;
 
     sigemptyset(&sigset);
@@ -243,6 +249,7 @@ int main(int argc, char **argv) {
     pthread_create(&t_w1, NULL, worker, list);
     pthread_create(&t_w2, NULL, worker, list);
     pthread_create(&t_w3, NULL, worker, list);
+    pthread_create(&t_c1, NULL, thread_canceler, &t_w1);
 
     main_loop(sock, list);
 
