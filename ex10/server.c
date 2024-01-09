@@ -92,13 +92,21 @@ struct entry *list_dequeue(struct list *list) {
 // Beggining of Worker
 // ####
 
+void cleanup(void *arg) {
+    int sock = *(int *)arg;
+    close(sock);
+    free(arg);
+}
+
 void *worker(void *arg) {
     struct entry *job;
     struct list *queue = (struct list*)arg;
 
     while (1) {
         job = list_dequeue(queue);
+        pthread_cleanup_push(cleanup, job->arg);
         job->function(job->arg);
+        pthread_cleanup_pop(1);
     }
 }
 
@@ -148,11 +156,9 @@ void *sig_handler(void *arg) {
 void *protocol_main(void *arg) {
     char c[1];
     int sock = *(int *)arg;
-    free(arg);
 
     while (read(sock, c, sizeof c) > 0)
         /* ignore protocol process */;
-    close(sock);
     log_info("disconnected");
 }
 
